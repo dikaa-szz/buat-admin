@@ -1,23 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-// import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase'; // Mengimpor konfigurasi Firebase
-import L from 'leaflet'; // Mengimpor Leaflet untuk ikon kustom
+import { db } from '../firebase';
+import L from 'leaflet';
 
 const AddLocationForm = () => {
   const [category, setCategory] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [status, setStatus] = useState('belum_diperbaiki'); // Status baru
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
-  const [selectedPosition, setSelectedPosition] = useState([0, 0]); // Menyimpan posisi yang dipilih
-  const [savedLocations, setSavedLocations] = useState([]); // Menyimpan semua lokasi yang sudah disimpan
-  const [showNotification, setShowNotification] = useState(false); // Untuk menampilkan notifikasi
+  const [selectedPosition, setSelectedPosition] = useState([0, 0]);
+  const [savedLocations, setSavedLocations] = useState([]);
+  const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
-  // const navigate = useNavigate(); // Navigasi ke halaman lain setelah submit
 
-  // Koordinat untuk pusat peta di Indonesia
   const indonesiaCenter = [-2.548926, 118.014863];
 
   // Fungsi untuk mengambil semua lokasi yang sudah disimpan dari Firestore
@@ -39,47 +37,42 @@ const AddLocationForm = () => {
     fetchSavedLocations();
   }, []);
 
-  // Fungsi untuk memilih lokasi pada peta
   const handleMapClick = (e) => {
     const { lat, lng } = e.latlng;
-    setLatitude(lat.toString());    // Menyimpan latitude yang dipilih pada peta
-    setLongitude(lng.toString());   // Menyimpan longitude yang dipilih pada peta
-    setSelectedPosition([lat, lng]);  // Menyimpan posisi yang dipilih
+    setLatitude(lat.toString());
+    setLongitude(lng.toString());
+    setSelectedPosition([lat, lng]);
   };
 
-  // Fungsi untuk menampilkan notifikasi
   const showSuccessNotification = (message) => {
     setNotificationMessage(message);
     setShowNotification(true);
     setTimeout(() => {
       setShowNotification(false);
-    }, 3000); // Notifikasi hilang setelah 3 detik
+    }, 3000);
   };
 
-  // Fungsi untuk menyimpan lokasi ke Firestore
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validasi input
     if (!selectedPosition[0] || !selectedPosition[1] || selectedPosition[0] === 0 || selectedPosition[1] === 0) {
       alert('Silakan pilih lokasi pada peta terlebih dahulu');
       return;
     }
 
-    // Menyimpan data ke Firestore
     try {
       const newLocation = {
-        category: category,         // Kategori dari input
-        title: title,               // Nama lokasi
-        description: description,   // Deskripsi lokasi
-        latitude: selectedPosition[0],  // Latitude dari posisi yang dipilih
-        longitude: selectedPosition[1],  // Longitude dari posisi yang dipilih
-        timestamp: new Date(),      // Waktu saat lokasi ditambahkan
+        category: category,
+        title: title,
+        description: description,
+        status: status, // Menyimpan status perbaikan
+        latitude: selectedPosition[0],
+        longitude: selectedPosition[1],
+        timestamp: new Date(),
       };
 
       const docRef = await addDoc(collection(db, 'spots'), newLocation);
       
-      // Tambahkan lokasi baru ke state dengan ID dari Firestore
       const locationWithId = {
         id: docRef.id,
         ...newLocation
@@ -90,11 +83,11 @@ const AddLocationForm = () => {
       setCategory('');
       setTitle('');
       setDescription('');
+      setStatus('belum_diperbaiki');
       setLatitude('');
       setLongitude('');
       setSelectedPosition([0, 0]);
 
-      // Tampilkan notifikasi berhasil
       showSuccessNotification(`Lokasi "${title}" berhasil ditambahkan!`);
       
     } catch (error) {
@@ -103,9 +96,27 @@ const AddLocationForm = () => {
     }
   };
 
-  // Ikon kustom untuk marker yang baru dipilih
+  // Fungsi untuk mendapatkan ikon berdasarkan status
+  const getMarkerIcon = (status) => {
+    const iconUrls = {
+      belum_diperbaiki: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+      sedang_diperbaiki: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png',
+      sudah_diperbaiki: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    };
+
+    return new L.Icon({
+      iconUrl: iconUrls[status] || iconUrls.belum_diperbaiki,
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      shadowSize: [41, 41],
+    });
+  };
+
+  // Ikon untuk lokasi yang sedang dipilih (biru)
   const selectedIcon = new L.Icon({
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -113,17 +124,6 @@ const AddLocationForm = () => {
     shadowSize: [41, 41],
   });
 
-  // Ikon kustom untuk marker yang sudah disimpan (warna berbeda)
-  const savedIcon = new L.Icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-    shadowSize: [41, 41],
-  });
-
-  // Fungsi untuk memperbarui peta berdasarkan input latitude dan longitude
   const handleManualLocationUpdate = () => {
     if (latitude && longitude) {
       const lat = parseFloat(latitude);
@@ -136,7 +136,16 @@ const AddLocationForm = () => {
     }
   };
 
-  // Style untuk notifikasi
+  // Fungsi untuk mendapatkan label status
+  const getStatusLabel = (status) => {
+    const labels = {
+      belum_diperbaiki: 'Belum Diperbaiki',
+      sedang_diperbaiki: 'Sedang Diperbaiki',
+      sudah_diperbaiki: 'Sudah Diperbaiki',
+    };
+    return labels[status] || 'Belum Diperbaiki';
+  };
+
   const notificationStyle = {
     position: 'fixed',
     top: '20px',
@@ -153,12 +162,11 @@ const AddLocationForm = () => {
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Notifikasi */}
       <div style={notificationStyle}>
         <strong>✅ {notificationMessage}</strong>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px', gap: '20px' }}>
         {/* Form Input */}
         <div style={{ width: '45%' }}>
           <h1>Tambah Titik Lokasi Kerusakan</h1>
@@ -169,7 +177,7 @@ const AddLocationForm = () => {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 required
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
               >
                 <option value="">Pilih Kategori</option>
                 <option value="Jalan Rusak">Jalan Rusak</option>
@@ -179,14 +187,14 @@ const AddLocationForm = () => {
             </div>
 
             <div style={{ marginBottom: '10px' }}>
-              <label>Title</label>
+              <label>Judul</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
                 placeholder="Nama Lokasi"
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
             </div>
 
@@ -197,8 +205,22 @@ const AddLocationForm = () => {
                 onChange={(e) => setDescription(e.target.value)}
                 required
                 placeholder="Deskripsi Lokasi"
-                style={{ width: '100%', padding: '8px', minHeight: '80px' }}
+                style={{ width: '100%', padding: '8px', minHeight: '80px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
+            </div>
+
+            <div style={{ marginBottom: '10px' }}>
+              <label>Status Perbaikan</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                required
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+              >
+                <option value="belum_diperbaiki">🔴 Belum Diperbaiki</option>
+                <option value="sedang_diperbaiki">🟡 Sedang Diperbaiki</option>
+                <option value="sudah_diperbaiki">🟢 Sudah Diperbaiki</option>
+              </select>
             </div>
 
             <div style={{ marginBottom: '10px' }}>
@@ -209,7 +231,7 @@ const AddLocationForm = () => {
                 onChange={(e) => setLatitude(e.target.value)}
                 required
                 placeholder="Masukkan Latitude atau klik pada peta"
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
             </div>
 
@@ -221,7 +243,7 @@ const AddLocationForm = () => {
                 onChange={(e) => setLongitude(e.target.value)}
                 required
                 placeholder="Masukkan Longitude atau klik pada peta"
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
               />
             </div>
 
@@ -235,7 +257,8 @@ const AddLocationForm = () => {
                 padding: '10px', 
                 border: 'none', 
                 borderRadius: '4px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 'bold'
               }}
             >
               Perbarui Lokasi dari Koordinat
@@ -249,25 +272,25 @@ const AddLocationForm = () => {
                 padding: '10px', 
                 border: 'none', 
                 borderRadius: '4px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 'bold'
               }}
             >
               Simpan Lokasi
             </button>
           </form>
 
-          {/* Info lokasi yang dipilih */}
           {selectedPosition[0] !== 0 && selectedPosition[1] !== 0 && (
             <div style={{ 
               marginTop: '20px', 
-              padding: '10px', 
-              backgroundColor: '#f0f8ff', 
+              padding: '15px', 
+              backgroundColor: '#e3f2fd', 
               borderRadius: '5px',
-              border: '1px solid #ddd'
+              border: '1px solid #2196F3'
             }}>
-              <h4>Lokasi yang Dipilih:</h4>
-              <p><strong>Latitude:</strong> {selectedPosition[0]}</p>
-              <p><strong>Longitude:</strong> {selectedPosition[1]}</p>
+              <h4 style={{ margin: '0 0 10px 0' }}>Lokasi yang Dipilih:</h4>
+              <p style={{ margin: '5px 0' }}><strong>Latitude:</strong> {selectedPosition[0].toFixed(6)}</p>
+              <p style={{ margin: '5px 0' }}><strong>Longitude:</strong> {selectedPosition[1].toFixed(6)}</p>
             </div>
           )}
         </div>
@@ -275,25 +298,51 @@ const AddLocationForm = () => {
         {/* Map */}
         <div style={{ width: '50%' }}>
           <h3>Peta Lokasi</h3>
+          
+          {/* Legenda */}
+          <div style={{ 
+            padding: '15px', 
+            backgroundColor: '#f5f5f5', 
+            borderRadius: '5px',
+            marginBottom: '15px',
+            border: '1px solid #ddd'
+          }}>
+            <h4 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Legenda Marker:</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>🔵</span>
+                <span>Lokasi yang akan ditambahkan</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>🔴</span>
+                <span>Belum Diperbaiki</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>🟡</span>
+                <span>Sedang Diperbaiki</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>🟢</span>
+                <span>Sudah Diperbaiki</span>
+              </div>
+            </div>
+          </div>
+
           <p style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
-            Klik pada peta untuk memilih lokasi baru. 
-            <br />
-            🔵 Marker biru: Lokasi yang akan ditambahkan
-            <br />
-            🟢 Marker hijau: Lokasi yang sudah disimpan
+            Klik pada peta untuk memilih lokasi baru
           </p>
+          
           <MapContainer
-            center={indonesiaCenter}  // Pusat peta di Indonesia
-            zoom={5}  // Zoom level untuk seluruh Indonesia
-            style={{ width: '100%', height: '500px' }}
-            whenCreated={(map) => map.on('click', handleMapClick)}  // Fungsi untuk memilih lokasi
+            center={indonesiaCenter}
+            zoom={5}
+            style={{ width: '100%', height: '500px', borderRadius: '5px' }}
+            whenCreated={(map) => map.on('click', handleMapClick)}
           >
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
             />
             
-            {/* Marker untuk lokasi yang sedang dipilih */}
             {selectedPosition[0] !== 0 && selectedPosition[1] !== 0 && (
               <Marker position={selectedPosition} icon={selectedIcon}>
                 <Popup>
@@ -306,27 +355,39 @@ const AddLocationForm = () => {
               </Marker>
             )}
 
-            {/* Marker untuk semua lokasi yang sudah disimpan */}
             {savedLocations.map((location) => {
               if (!location.latitude || !location.longitude) return null;
               return (
                 <Marker 
                   key={location.id} 
                   position={[location.latitude, location.longitude]} 
-                  icon={savedIcon}
+                  icon={getMarkerIcon(location.status || 'belum_diperbaiki')}
                 >
                   <Popup>
-                    <strong>{location.title}</strong>
-                    <br />
-                    <em>Kategori: {location.category}</em>
-                    <br />
-                    {location.description}
-                    <br />
-                    <small>
-                      Lat: {location.latitude.toFixed ? location.latitude.toFixed(6) : location.latitude}
+                    <div style={{ minWidth: '200px' }}>
+                      <strong style={{ fontSize: '16px' }}>{location.title}</strong>
                       <br />
-                      Lng: {location.longitude.toFixed ? location.longitude.toFixed(6) : location.longitude}
-                    </small>
+                      <em>Kategori: {location.category}</em>
+                      <br />
+                      <div style={{ 
+                        marginTop: '5px', 
+                        padding: '5px 10px', 
+                        backgroundColor: location.status === 'belum_diperbaiki' ? '#ffebee' : 
+                                       location.status === 'sedang_diperbaiki' ? '#fff9c4' : '#e8f5e9',
+                        borderRadius: '3px',
+                        fontWeight: 'bold'
+                      }}>
+                        Status: {getStatusLabel(location.status || 'belum_diperbaiki')}
+                      </div>
+                      <br />
+                      {location.description}
+                      <br />
+                      <small style={{ color: '#666' }}>
+                        Lat: {location.latitude.toFixed ? location.latitude.toFixed(6) : location.latitude}
+                        <br />
+                        Lng: {location.longitude.toFixed ? location.longitude.toFixed(6) : location.longitude}
+                      </small>
+                    </div>
                   </Popup>
                 </Marker>
               );
@@ -335,7 +396,6 @@ const AddLocationForm = () => {
         </div>
       </div>
 
-      {/* CSS untuk animasi notifikasi */}
       <style jsx>{`
         @keyframes slideIn {
           from {
